@@ -7,11 +7,37 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SIG_VALIDATION_SUCCESS, SIG_VALIDATION_FAILED} from "@account-abstraction/contracts/core/Helpers.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 
 contract BasicAccount is IAccount, Ownable {
-    error MISSING_ACCOUNT_FUNDS();
+    /*//////////////////////////////////////////////////////////////
+                           ERRORS
+    //////////////////////////////////////////////////////////////*/
+    error BASIC_ACCOUNT__MISSING_ACCOUNT_FUNDS();
+    error BASIC_ACCOUNT__NOT_ENTRY_POINT();
 
-    constructor() Ownable(msg.sender) {}
+    /*//////////////////////////////////////////////////////////////
+                           STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
+
+    IEntryPoint private immutable i_entryPoint;
+
+    /*//////////////////////////////////////////////////////////////
+                           MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+    modifier onlyEntrtyPoint() {
+        if (msg.sender != address(i_entryPoint)) {
+            revert BASIC_ACCOUNT__NOT_ENTRY_POINT();
+        }
+        _;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    constructor(address _entryPoint) Ownable(msg.sender) {
+        i_entryPoint = IEntryPoint(_entryPoint);
+    }
 
     /**
      * @param userOp - The user operation to validate.
@@ -20,6 +46,7 @@ contract BasicAccount is IAccount, Ownable {
      */
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
         external
+        onlyEntrtyPoint
         returns (uint256 validationData)
     {
         //the signature is valid if  sender is the owner
@@ -27,7 +54,7 @@ contract BasicAccount is IAccount, Ownable {
         //_validateNonce(userOp.nonce);
         bool success = _payPreFund(missingAccountFunds);
         if (!success) {
-            revert MISSING_ACCOUNT_FUNDS();
+            revert BASIC_ACCOUNT__MISSING_ACCOUNT_FUNDS();
         }
     }
 
@@ -50,5 +77,12 @@ contract BasicAccount is IAccount, Ownable {
         if (missingAccountFunds != 0) {
             (success,) = payable(msg.sender).call{value: missingAccountFunds, gas: type(uint256).max}("");
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         GETTERS
+    //////////////////////////////////////////////////////////////*/
+    function getEntryPoint() public view returns (address) {
+        return address(i_entryPoint);
     }
 }
