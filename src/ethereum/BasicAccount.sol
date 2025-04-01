@@ -18,11 +18,10 @@ contract BasicAccount is IAccount, Ownable {
      * @param userOpHash - The hash of the user operation to validate.
      * @param missingAccountFunds - The amount of funds the user will need to deposit to cover the cost of the user operation.
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 missingAccountFunds
-    ) external returns (uint256 validationData) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
+        external
+        returns (uint256 validationData)
+    {
         //the signature is valid if  sender is the owner
         validationData = _validateSignature(userOp, userOpHash);
         //_validateNonce(userOp.nonce);
@@ -33,13 +32,12 @@ contract BasicAccount is IAccount, Ownable {
     }
 
     //the signature is valid if  sender is the owner
-    function _validateSignature(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    ) internal view returns (uint256 validationData) {
-        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(
-            userOpHash
-        );
+    function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        internal
+        view
+        returns (uint256 validationData)
+    {
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
 
         address signer = ECDSA.recover(ethSignedMessageHash, userOp.signature);
         if (signer != owner()) {
@@ -48,14 +46,9 @@ contract BasicAccount is IAccount, Ownable {
         return SIG_VALIDATION_SUCCESS;
     }
 
-    function _payPreFund(
-        uint256 missingAccountFunds
-    ) internal returns (bool success) {
+    function _payPreFund(uint256 missingAccountFunds) internal returns (bool success) {
         if (missingAccountFunds != 0) {
-            (success, ) = payable(msg.sender).call{
-                value: missingAccountFunds,
-                gas: type(uint256).max
-            }("");
+            (success,) = payable(msg.sender).call{value: missingAccountFunds, gas: type(uint256).max}("");
         }
     }
 }
