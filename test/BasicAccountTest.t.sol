@@ -6,11 +6,19 @@ import {BasicAccount} from "src/ethereum/BasicAccount.sol";
 import {DeployAccount} from "script/DeployAccount.s.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {SendPackedUserOp} from "script/SendPackedUserOp.s.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract BasicAccountTest is Test {
+    using MessageHashUtils for bytes32;
+
     HelperConfig helperConfig;
     BasicAccount basicAccount;
     ERC20Mock usdc;
+    SendPackedUserOp sendPackedUserOp;
 
     address randomUser = makeAddr("randomUser");
 
@@ -20,6 +28,7 @@ contract BasicAccountTest is Test {
         DeployAccount deploy = new DeployAccount();
         (helperConfig, basicAccount) = deploy.deployBasicAccount();
         usdc = new ERC20Mock();
+        sendPackedUserOp = new SendPackedUserOp();
     }
 
     //Usdc mint
@@ -29,7 +38,11 @@ contract BasicAccountTest is Test {
         assertEq(usdc.balanceOf(address(basicAccount)), 0);
         address destination = address(usdc);
         uint256 value = 0;
-        bytes memory data = abi.encodeWithSelector(ERC20Mock.mint.selector, address(basicAccount), AMOUNT);
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
         //Act
         vm.startPrank(basicAccount.owner());
         basicAccount.execute(destination, value, data);
@@ -44,11 +57,49 @@ contract BasicAccountTest is Test {
         assertEq(usdc.balanceOf(address(basicAccount)), 0);
         address destination = address(usdc);
         uint256 value = 0;
-        bytes memory data = abi.encodeWithSelector(ERC20Mock.mint.selector, address(basicAccount), AMOUNT);
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
         //Act
         vm.startPrank(randomUser);
-        vm.expectRevert(BasicAccount.BasicAccount__NotFromEntryPointOrOwner.selector);
+        vm.expectRevert(
+            BasicAccount.BasicAccount__NotFromEntryPointOrOwner.selector
+        );
         basicAccount.execute(destination, value, data);
         vm.stopPrank();
+    }
+
+    function testRecoverSignedUserOp() public {
+        //Arrange
+        assertEq(usdc.balanceOf(address(basicAccount)), 0);
+        address destination = address(usdc);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
+
+        bytes memory executeData = abi.encodeWithSelector(
+            BasicAccount.execute.selector,
+            destination,
+            value,
+            data
+        );
+        PackedUserOperation memory userOp = sendPackedUserOp
+            .generateSignedPackedOp(executeData, helperConfig.getConfig());
+        //Act
+        address entryPoint = helperConfig.getConfig().entryPoint;
+
+        bytes32 userOpHash = IEntryPoint(entryPoint).getUserOpHash(userOp);
+        address sender = ECDSA.recover(
+            userOpHash.toEthSignedMessageHash(),
+            userOp.signature
+        );
+
+        // Assert
+        assertEq(sender, basicAccount.owner());
     }
 }
