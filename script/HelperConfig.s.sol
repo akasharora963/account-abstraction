@@ -115,7 +115,7 @@ contract HelperConfig is Script {
         EntryPoint entryPoint = new EntryPoint();
         ERC20Mock erc20Mock = new ERC20Mock();
         vm.stopBroadcast();
-        console2.log("Mocks deployed!");
+        console2.log("Mocks deployed!", address(entryPoint), address(erc20Mock));
 
         localNetworkConfig =
             NetworkConfig({entryPoint: address(entryPoint), usdc: address(erc20Mock), account: ANVIL_DEFAULT_ACCOUNT});

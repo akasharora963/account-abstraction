@@ -103,6 +103,9 @@ contract BasicAccount is IAccount, Ownable {
 
     function _payPreFund(uint256 missingAccountFunds) internal returns (bool success) {
         if (missingAccountFunds != 0) {
+            if (address(this).balance < missingAccountFunds) {
+                return false;
+            }
             (success,) = payable(msg.sender).call{value: missingAccountFunds, gas: type(uint256).max}("");
         }
     }
