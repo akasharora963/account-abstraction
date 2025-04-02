@@ -39,7 +39,11 @@ contract BasicAccountTest is Test {
         assertEq(usdc.balanceOf(address(basicAccount)), 0);
         address destination = address(usdc);
         uint256 value = 0;
-        bytes memory data = abi.encodeWithSelector(ERC20Mock.mint.selector, address(basicAccount), AMOUNT);
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
         //Act
         vm.startPrank(basicAccount.owner());
         basicAccount.execute(destination, value, data);
@@ -54,10 +58,16 @@ contract BasicAccountTest is Test {
         assertEq(usdc.balanceOf(address(basicAccount)), 0);
         address destination = address(usdc);
         uint256 value = 0;
-        bytes memory data = abi.encodeWithSelector(ERC20Mock.mint.selector, address(basicAccount), AMOUNT);
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
         //Act
         vm.startPrank(randomUser);
-        vm.expectRevert(BasicAccount.BasicAccount__NotFromEntryPointOrOwner.selector);
+        vm.expectRevert(
+            BasicAccount.BasicAccount__NotFromEntryPointOrOwner.selector
+        );
         basicAccount.execute(destination, value, data);
         vm.stopPrank();
     }
@@ -67,16 +77,32 @@ contract BasicAccountTest is Test {
         assertEq(usdc.balanceOf(address(basicAccount)), 0);
         address destination = address(usdc);
         uint256 value = 0;
-        bytes memory data = abi.encodeWithSelector(ERC20Mock.mint.selector, address(basicAccount), AMOUNT);
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
 
-        bytes memory executeData = abi.encodeWithSelector(BasicAccount.execute.selector, destination, value, data);
-        PackedUserOperation memory userOp =
-            sendPackedUserOp.generateSignedPackedOp(executeData, helperConfig.getConfig());
+        bytes memory executeData = abi.encodeWithSelector(
+            BasicAccount.execute.selector,
+            destination,
+            value,
+            data
+        );
+        PackedUserOperation memory userOp = sendPackedUserOp
+            .generateSignedPackedOp(
+                executeData,
+                helperConfig.getConfig(),
+                address(basicAccount)
+            );
         //Act
         address entryPoint = helperConfig.getConfig().entryPoint;
 
         bytes32 userOpHash = IEntryPoint(entryPoint).getUserOpHash(userOp);
-        address sender = ECDSA.recover(userOpHash.toEthSignedMessageHash(), userOp.signature);
+        address sender = ECDSA.recover(
+            userOpHash.toEthSignedMessageHash(),
+            userOp.signature
+        );
 
         // Assert
         assertEq(sender, basicAccount.owner());
@@ -87,27 +113,78 @@ contract BasicAccountTest is Test {
         assertEq(usdc.balanceOf(address(basicAccount)), 0);
         address destination = address(usdc);
         uint256 value = 0;
-        bytes memory data = abi.encodeWithSelector(ERC20Mock.mint.selector, address(basicAccount), AMOUNT);
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
 
-        bytes memory executeData = abi.encodeWithSelector(BasicAccount.execute.selector, destination, value, data);
-        PackedUserOperation memory userOp =
-            sendPackedUserOp.generateSignedPackedOp(executeData, helperConfig.getConfig());
+        bytes memory executeData = abi.encodeWithSelector(
+            BasicAccount.execute.selector,
+            destination,
+            value,
+            data
+        );
+        PackedUserOperation memory userOp = sendPackedUserOp
+            .generateSignedPackedOp(
+                executeData,
+                helperConfig.getConfig(),
+                address(basicAccount)
+            );
         address entryPoint = helperConfig.getConfig().entryPoint;
         bytes32 userOpHash = IEntryPoint(entryPoint).getUserOpHash(userOp);
         uint256 missingAccountFunds = 1 ether;
 
         //Act
-        vm.startPrank(msg.sender);
-        (bool success,) = payable(address(basicAccount)).call{value: missingAccountFunds, gas: type(uint256).max}("");
-        vm.stopPrank();
-
+        vm.deal(address(basicAccount), missingAccountFunds);
         vm.startPrank(entryPoint);
-        uint256 validationData = basicAccount.validateUserOp(userOp, userOpHash, missingAccountFunds);
-        uint256 balance2 = address(entryPoint).balance;
-
+        uint256 validationData = basicAccount.validateUserOp(
+            userOp,
+            userOpHash,
+            missingAccountFunds
+        );
         vm.stopPrank();
 
         // Assert
         assert(validationData == SIG_VALIDATION_SUCCESS);
+    }
+
+    function testEntryPointCanExecute() public {
+        //Arrange
+        assertEq(usdc.balanceOf(address(basicAccount)), 0);
+        address destination = address(usdc);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(basicAccount),
+            AMOUNT
+        );
+
+        bytes memory executeData = abi.encodeWithSelector(
+            BasicAccount.execute.selector,
+            destination,
+            value,
+            data
+        );
+        PackedUserOperation memory userOp = sendPackedUserOp
+            .generateSignedPackedOp(
+                executeData,
+                helperConfig.getConfig(),
+                address(basicAccount)
+            );
+        address entryPoint = helperConfig.getConfig().entryPoint;
+        uint256 missingAccountFunds = 1 ether;
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+
+        //Act
+        vm.deal(address(basicAccount), missingAccountFunds);
+        vm.startPrank(randomUser);
+        IEntryPoint(entryPoint).handleOps(ops, payable(randomUser));
+        vm.stopPrank();
+
+        //Assert
+        assertEq(usdc.balanceOf(address(basicAccount)), AMOUNT);
     }
 }
